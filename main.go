@@ -102,11 +102,19 @@ type AppState struct {
 }
 
 func main() {
+	// Previeni panic da chiudere l'applicazione
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "Errore fatale: %v\n", r)
+		}
+	}()
+
 	myApp := app.NewWithID("com.ffmpeg.gui")
 	myApp.Settings().SetTheme(&myTheme{})
 
 	w := myApp.NewWindow("FFmpeg GUI")
 	w.Resize(fyne.NewSize(900, 750))
+	w.CenterOnScreen()
 
 	state := &AppState{
 		window:   w,
@@ -114,13 +122,24 @@ func main() {
 		stopChan: make(chan bool),
 	}
 
-	// Verifica FFmpeg all'avvio
-	ffmpegPath := findFFmpeg()
-	if ffmpegPath == "" {
-		dialog.ShowError(fmt.Errorf("FFmpeg non trovato! Assicurati che ffmpeg.exe sia nella stessa cartella del programma o nel PATH di sistema."), w)
-	}
-
 	state.buildUI()
+
+	// Verifica FFmpeg dopo che la UI è pronta
+	w.SetOnShown(func() {
+		ffmpegPath := findFFmpeg()
+		if ffmpegPath == "" {
+			dialog.ShowInformation(
+				"FFmpeg non trovato",
+				"FFmpeg non è stato trovato nel sistema.\n\n"+
+					"Per usare questa applicazione, devi:\n"+
+					"1. Scaricare ffmpeg.exe da ffmpeg.org\n"+
+					"2. Posizionarlo nella stessa cartella di questo programma\n"+
+					"   OPPURE aggiungerlo al PATH di sistema\n\n"+
+					"L'applicazione può essere usata una volta che FFmpeg è disponibile.",
+				w,
+			)
+		}
+	})
 
 	// Gestione Drag & Drop
 	w.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
@@ -137,6 +156,25 @@ func main() {
 		}
 		state.fileList.SetText(sb.String())
 		state.updatePreview()
+	})
+
+	// Gestione chiusura con stop processi
+	w.SetCloseIntercept(func() {
+		if state.isRunning {
+			dialog.ShowConfirm(
+				"Compressione in corso",
+				"Una compressione è in corso. Vuoi davvero uscire?",
+				func(confirmed bool) {
+					if confirmed {
+						state.stopCompression()
+						w.Close()
+					}
+				},
+				w,
+			)
+		} else {
+			w.Close()
+		}
 	})
 
 	w.ShowAndRun()
