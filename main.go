@@ -132,7 +132,7 @@ func main() {
 	go func() {
 		time.Sleep(250 * time.Millisecond)
 		if findFFmpeg() == "" {
-			w.Canvas().Invoke(func() {
+			w.QueueUpdate(func() {
 				dialog.ShowInformation(
 					"FFmpeg non trovato",
 					"FFmpeg non è stato trovato.\nScarica ffmpeg.exe e mettilo nella stessa cartella.",
@@ -516,19 +516,12 @@ func (s *AppState) startCompression() {
 		}
 
 		// UI final
-		s.window.Canvas().Invoke(func() {
-			s.isRunning = false
-			s.btnStart.Enable()
-			s.btnStop.Disable()
-			s.fileList.Enable()
-			s.comboCodec.Enable()
-			s.comboPreset.Enable()
-			s.comboScale.Enable()
-			s.sliderCQ.Enable()
-			s.checkManual.Enable()
-			s.progressLbl.SetText("Pronto.")
-			s.progressBar.SetValue(0)
-		})
+s.window.QueueUpdate(func() {
+    s.progressBar.SetValue(p)
+    s.progressLbl.SetText(
+        fmt.Sprintf("File %d/%d (%.0f%%): %s",
+            index, total, p*100, filename))
+})
 	}()
 }
 
@@ -598,7 +591,7 @@ func (s *AppState) runFFmpeg(args []string, index, total int, filename string) {
 			})
 		}
 
-		s.window.Canvas().Invoke(func() { s.log(line + "\n") })
+		s.window.QueueUpdate(func() {s.log(line + "\n")})
 	}
 
 	_ = cmd.Wait()
