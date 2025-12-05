@@ -55,6 +55,9 @@ jobs:
         go get fyne.io/fyne/v2/layout@latest
         go get fyne.io/fyne/v2/theme@latest
         go get fyne.io/fyne/v2/widget@latest
+
+        # Questo aggiornerà anche le dipendenze indirette necessarie.
+        go get -u fyne.io/fyne/v2
         
         # Crea go.sum
         go mod tidy
