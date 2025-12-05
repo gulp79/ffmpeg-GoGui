@@ -1,0 +1,44 @@
+# Binari
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Build artifacts
+resource.syso
+rsrc.syso
+versioninfo.json
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary
+*.tmp
+*.log
+
+# FFmpeg test files
+*.mp4
+*.mkv
+*.avi
+*.mov
+proxy/
+
+# Mantieni questi file
+!icon.ico
+!go.mod
+!go.sum
