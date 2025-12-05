@@ -1,16 +1,10 @@
 name: Build Optimized Go Binary
 
 on:
-# Rimuove gli eventi push e pull_request.
-  #push:
-  #  branches: [ "main", "master" ]
-  #pull_request:
-  #  branches: [ "main", "master" ]  
-# Aggiunge l'evento 'workflow_dispatch' per l'esecuzione manuale.
   workflow_dispatch:
     inputs:
       reason:
-        description: 'Motivo per l''esecuzione manuale (es. "Build per release 1.0")'
+        description: 'Motivo per esecuzione manuale'
         required: false
         default: 'Manuale'
 
@@ -26,7 +20,6 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        # Usa la versione di Go più recente specificata
         go-version: '1.25.5' 
         cache: false 
 
@@ -34,7 +27,6 @@ jobs:
       run: |
         if (Test-Path "icon.ico") {
           Write-Host "✓ File icon.ico trovato"
-          Get-Item "icon.ico" | Format-List
         } else {
           Write-Host "✗ ATTENZIONE: File icon.ico non trovato!"
         }
@@ -42,63 +34,45 @@ jobs:
 
     - name: Initialize Go Module e Install Dependencies
       run: |
-        # Inizializza modulo se non esiste (se il go.mod non è nel repo)
         if (-not (Test-Path "go.mod")) {
           go mod init github.com/gulp79/ffmpeg-gui-go
           Write-Host "✓ go.mod creato"
         }
         
-        # Aggiorna il modulo fyne/v2 alla versione più recente
+        # Aggiorna le dipendenze
         go get -u fyne.io/fyne/v2
-        
-        # Pulisce e genera go.sum con tutte le dipendenze aggiornate
         go mod tidy
         
-        Write-Host "✓ Dipendenze aggiornate e go.sum generato"
+        Write-Host "✓ Dipendenze aggiornate"
       shell: pwsh
 
-    - name: Install Fyne Tools (Official v2 CLI)
+    - name: Install Fyne Tools (Latest)
       run: |
-        # CORREZIONE CHIAVE: Usa il percorso corretto per la CLI Fyne v2
-        go install fyne.io/fyne/v2/cmd/fyne@latest
-        Write-Host "✓ Fyne Tools v2 installato"
+        # CORREZIONE: Usiamo il nuovo repository dei tool ufficiale
+        go install fyne.io/tools/cmd/fyne@latest
+        Write-Host "✓ Fyne Tools installato"
       shell: pwsh
 
     - name: Build con Fyne Package
       run: |
-        # Aggiungi go/bin al PATH per trovare il comando 'fyne' appena installato
         $env:PATH += ";$env:USERPROFILE\go\bin"
         
-        # Parametri corretti per fyne tools
         if (Test-Path "icon.ico") {
           Write-Host "Building con icona..."
-          fyne package `
-            -os windows `
-            -icon icon.ico `
-            -name FFmpeg-GUI `
-            -appID com.ffmpeg.gui `
-            -release
+          fyne package -os windows -icon icon.ico -name FFmpeg-GUI -appID com.ffmpeg.gui -release
         } else {
           Write-Host "Building senza icona..."
-          fyne package `
-            -os windows `
-            -name FFmpeg-GUI `
-            -appID com.ffmpeg.gui `
-            -release
+          fyne package -os windows -name FFmpeg-GUI -appID com.ffmpeg.gui -release
         }
         
         Write-Host "✓ Build completata"
       shell: pwsh
 
-    - name: Rinomina eseguibile
+    - name: Rinomina ed esporta eseguibile
       run: |
-        # Fyne package crea FFmpeg-GUI.exe nella cartella corrente
         if (Test-Path "FFmpeg-GUI.exe") {
           Write-Host "✓ Eseguibile trovato"
-          Get-Item "FFmpeg-GUI.exe" | Format-List Name, Length, LastWriteTime
         } else {
-          Write-Host "Cerco in subdirectory..."
-          Get-ChildItem -Recurse -Filter "*.exe" | Format-Table FullName, Length
           throw "Eseguibile non trovato!"
         }
       shell: pwsh
@@ -109,7 +83,7 @@ jobs:
         name: FFmpeg-GUI-Windows
         path: FFmpeg-GUI.exe
         if-no-files-found: error
-        
+
     - name: Upload go.sum Artifact
       uses: actions/upload-artifact@v4
       with:
