@@ -48,7 +48,7 @@ jobs:
 
     - name: Install Fyne Tools (Latest)
       run: |
-        # CORREZIONE: Usiamo il nuovo repository dei tool ufficiale
+        # Installa l'ultima versione del tool CLI
         go install fyne.io/tools/cmd/fyne@latest
         Write-Host "✓ Fyne Tools installato"
       shell: pwsh
@@ -57,12 +57,15 @@ jobs:
       run: |
         $env:PATH += ";$env:USERPROFILE\go\bin"
         
+        # NOTA: Sintassi aggiornata per i nuovi tool Fyne
+        # --os, --icon, --name, --app-id, --release
+        
         if (Test-Path "icon.ico") {
           Write-Host "Building con icona..."
-          fyne package -os windows -icon icon.ico -name FFmpeg-GUI -appID com.ffmpeg.gui -release
+          fyne package --os windows --icon icon.ico --name FFmpeg-GUI --app-id com.ffmpeg.gui --release
         } else {
           Write-Host "Building senza icona..."
-          fyne package -os windows -name FFmpeg-GUI -appID com.ffmpeg.gui -release
+          fyne package --os windows --name FFmpeg-GUI --app-id com.ffmpeg.gui --release
         }
         
         Write-Host "✓ Build completata"
