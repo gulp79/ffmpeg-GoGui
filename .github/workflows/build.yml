@@ -16,7 +16,7 @@ on:
 
 jobs:
   build-windows:
-    name: Build per Windows
+    name: Build per Windows con Fyne
     runs-on: windows-latest
     
     steps:
@@ -26,7 +26,8 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.23.5'
+        cache: false  # Disabilitiamo cache finché non abbiamo go.sum
 
     - name: Verifica file icona
       run: |
@@ -38,40 +39,70 @@ jobs:
         }
       shell: pwsh
 
-    - name: Install Dependencies
+    - name: Initialize Go Module e Install Dependencies
       run: |
-        go mod init ffmpeg-gui-go 2>$null || echo "go.mod già esistente"
-        go get fyne.io/fyne/v2
-        go get fyne.io/fyne/v2/app
-        go get fyne.io/fyne/v2/container
-        go get fyne.io/fyne/v2/dialog
-        go get fyne.io/fyne/v2/layout
-        go get fyne.io/fyne/v2/theme
-        go get fyne.io/fyne/v2/widget
-        go mod tidy
-
-    - name: Install Fyne CLI
-      run: go install fyne.io/fyne/v2/cmd/fyne@latest
-
-    - name: Build con Fyne (include icona)
-      run: |
-        $env:PATH += ";$env:USERPROFILE\go\bin"
-        if (Test-Path "icon.ico") {
-          fyne package -os windows -icon icon.ico -name "FFmpeg-GUI" -release
-        } else {
-          Write-Host "Build senza icona (icon.ico non trovato)"
-          fyne package -os windows -name "FFmpeg-GUI" -release
+        # Inizializza modulo se non esiste
+        if (-not (Test-Path "go.mod")) {
+          go mod init github.com/gulp79/ffmpeg-gui-go
+          Write-Host "✓ go.mod creato"
         }
+        
+        # Installa dipendenze
+        go get fyne.io/fyne/v2@latest
+        go get fyne.io/fyne/v2/app@latest
+        go get fyne.io/fyne/v2/container@latest
+        go get fyne.io/fyne/v2/dialog@latest
+        go get fyne.io/fyne/v2/layout@latest
+        go get fyne.io/fyne/v2/theme@latest
+        go get fyne.io/fyne/v2/widget@latest
+        
+        # Crea go.sum
+        go mod tidy
+        
+        Write-Host "✓ Dipendenze installate e go.sum generato"
       shell: pwsh
 
-    - name: Verifica output
+    - name: Install Fyne Tools (nuovo CLI)
       run: |
-        if (Test-Path "FFmpeg-GUI.exe") {
-          Write-Host "✓ Eseguibile creato con successo"
-          Get-Item "FFmpeg-GUI.exe" | Format-List
+        go install fyne.io/tools/cmd/fyne@latest
+        Write-Host "✓ Fyne Tools installato"
+      shell: pwsh
+
+    - name: Build con Fyne Package
+      run: |
+        $env:PATH += ";$env:USERPROFILE\go\bin"
+        
+        # Parametri corretti per il nuovo fyne tools
+        if (Test-Path "icon.ico") {
+          Write-Host "Building con icona..."
+          fyne package `
+            -os windows `
+            -icon icon.ico `
+            -name FFmpeg-GUI `
+            -appID com.ffmpeg.gui `
+            -release
         } else {
-          Write-Host "✗ ERRORE: Eseguibile non trovato!"
-          exit 1
+          Write-Host "Building senza icona..."
+          fyne package `
+            -os windows `
+            -name FFmpeg-GUI `
+            -appID com.ffmpeg.gui `
+            -release
+        }
+        
+        Write-Host "✓ Build completata"
+      shell: pwsh
+
+    - name: Rinomina eseguibile
+      run: |
+        # Fyne package crea FFmpeg-GUI.exe nella cartella corrente
+        if (Test-Path "FFmpeg-GUI.exe") {
+          Write-Host "✓ Eseguibile trovato"
+          Get-Item "FFmpeg-GUI.exe" | Format-List Name, Length, LastWriteTime
+        } else {
+          Write-Host "Cerco in subdirectory..."
+          Get-ChildItem -Recurse -Filter "*.exe" | Format-Table FullName, Length
+          throw "Eseguibile non trovato!"
         }
       shell: pwsh
 
@@ -82,8 +113,8 @@ jobs:
         path: FFmpeg-GUI.exe
         if-no-files-found: error
 
-  build-windows-alternative:
-    name: Build Alternativo (senza Fyne CLI)
+  build-windows-manual:
+    name: Build Manuale con Embedding Icona
     runs-on: windows-latest
     
     steps:
@@ -93,54 +124,158 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.23.5'
+        cache: false
 
-    - name: Install Dependencies
+    - name: Initialize Go Module
       run: |
-        go mod init ffmpeg-gui-go 2>$null || echo "go.mod già esistente"
-        go get fyne.io/fyne/v2
+        if (-not (Test-Path "go.mod")) {
+          go mod init github.com/gulp79/ffmpeg-gui-go
+        }
+        
+        go get fyne.io/fyne/v2@latest
         go mod tidy
+        
+        Write-Host "✓ Modulo inizializzato"
+      shell: pwsh
 
-    - name: Crea file risorsa Windows (rsrc)
+    - name: Install goversioninfo per embedding icona
       run: |
-        # Installa rsrc per embed icona
-        go install github.com/akavel/rsrc@latest
+        go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+        Write-Host "✓ goversioninfo installato"
+      shell: pwsh
+
+    - name: Crea file versioninfo.json
+      run: |
+        $versionInfo = @"
+        {
+          "FixedFileInfo": {
+            "FileVersion": {
+              "Major": 1,
+              "Minor": 0,
+              "Patch": 0,
+              "Build": 0
+            },
+            "ProductVersion": {
+              "Major": 1,
+              "Minor": 0,
+              "Patch": 0,
+              "Build": 0
+            },
+            "FileFlagsMask": "3f",
+            "FileFlags ": "00",
+            "FileOS": "040004",
+            "FileType": "01",
+            "FileSubType": "00"
+          },
+          "StringFileInfo": {
+            "Comments": "FFmpeg GUI con accelerazione CUDA",
+            "CompanyName": "gulp79",
+            "FileDescription": "FFmpeg GUI",
+            "FileVersion": "1.0.0.0",
+            "InternalName": "ffmpeg-gui",
+            "LegalCopyright": "© 2025",
+            "OriginalFilename": "FFmpeg-GUI.exe",
+            "ProductName": "FFmpeg GUI",
+            "ProductVersion": "1.0.0.0"
+          },
+          "VarFileInfo": {
+            "Translation": {
+              "LangID": "0409",
+              "CharsetID": "04B0"
+            }
+          },
+          "IconPath": "icon.ico",
+          "ManifestPath": ""
+        }
+        "@
         
-        # Crea manifest
-        @"
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-          <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="FFmpegGUI" type="win32"/>
-          <dependency>
-            <dependentAssembly>
-              <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
-            </dependentAssembly>
-          </dependency>
-          <application xmlns="urn:schemas-microsoft-com:asm.v3">
-            <windowsSettings>
-              <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
-            </windowsSettings>
-          </application>
-        </assembly>
-        "@ | Out-File -FilePath "app.manifest" -Encoding UTF8
-        
-        # Crea syso con icona
+        $versionInfo | Out-File -FilePath "versioninfo.json" -Encoding UTF8
+        Write-Host "✓ versioninfo.json creato"
+      shell: pwsh
+
+    - name: Generate resource.syso
+      run: |
         $env:PATH += ";$env:USERPROFILE\go\bin"
+        
         if (Test-Path "icon.ico") {
-          rsrc -manifest app.manifest -ico icon.ico -o rsrc.syso
-          Write-Host "✓ File rsrc.syso creato con icona"
+          goversioninfo -icon=icon.ico
+          Write-Host "✓ resource.syso generato con icona"
         } else {
-          rsrc -manifest app.manifest -o rsrc.syso
-          Write-Host "✓ File rsrc.syso creato senza icona"
+          goversioninfo
+          Write-Host "✓ resource.syso generato senza icona"
+        }
+        
+        if (Test-Path "resource.syso") {
+          Get-Item "resource.syso" | Format-List
         }
       shell: pwsh
 
-    - name: Build Optimized Executable
-      run: go build -ldflags "-s -w -H=windowsgui" -o FFmpeg-GUI-Alt.exe .
+    - name: Build Executable
+      run: |
+        go build -v -ldflags "-s -w -H=windowsgui" -o FFmpeg-GUI.exe .
+        
+        if (Test-Path "FFmpeg-GUI.exe") {
+          Write-Host "✓ Build completata"
+          Get-Item "FFmpeg-GUI.exe" | Format-List Name, Length, LastWriteTime
+        } else {
+          throw "Build fallita!"
+        }
+      shell: pwsh
 
-    - name: Upload Alternative Build
+    - name: Test eseguibile (verifica che sia valido)
+      run: |
+        # Verifica che sia un PE valido
+        $bytes = [System.IO.File]::ReadAllBytes("FFmpeg-GUI.exe")
+        if ($bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A) {
+          Write-Host "✓ File PE valido (MZ header presente)"
+        } else {
+          throw "File non è un eseguibile valido!"
+        }
+      shell: pwsh
+
+    - name: Upload Artifact Manual Build
       uses: actions/upload-artifact@v4
       with:
-        name: FFmpeg-GUI-Windows-Alternative
-        path: FFmpeg-GUI-Alt.exe
+        name: FFmpeg-GUI-Windows-Manual
+        path: FFmpeg-GUI.exe
+        if-no-files-found: error
+
+  build-windows-simple:
+    name: Build Semplice (Fallback)
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.5'
+        cache: false
+
+    - name: Initialize Module e Build
+      run: |
+        if (-not (Test-Path "go.mod")) {
+          go mod init github.com/gulp79/ffmpeg-gui-go
+        }
+        
+        go get fyne.io/fyne/v2@latest
+        go mod tidy
+        
+        # Build diretto senza embedding icona
+        go build -v -ldflags "-s -w -H=windowsgui" -o FFmpeg-GUI-Simple.exe .
+        
+        if (Test-Path "FFmpeg-GUI-Simple.exe") {
+          Write-Host "✓ Build semplice completata"
+          Get-Item "FFmpeg-GUI-Simple.exe" | Format-List
+        }
+      shell: pwsh
+
+    - name: Upload Simple Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: FFmpeg-GUI-Windows-Simple
+        path: FFmpeg-GUI-Simple.exe
         if-no-files-found: error
