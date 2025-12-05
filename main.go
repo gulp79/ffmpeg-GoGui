@@ -124,9 +124,9 @@ func main() {
 
 	state.buildUI()
 
-    // Verifica FFmpeg all'avvio
-	// Il controllo viene eseguito subito e il dialogo (se necessario) 
-	// verrà mostrato automaticamente sopra la finestra all'avvio.
+	// Verifica FFmpeg all'avvio
+	// NOTA: SetOnShown rimosso perché non esiste in Fyne v2. 
+	// Il dialogo verrà mostrato automaticamente sopra la finestra quando questa appare.
 	ffmpegPath := findFFmpeg()
 	if ffmpegPath == "" {
 		dialog.ShowInformation(
