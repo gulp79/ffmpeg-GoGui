@@ -124,22 +124,18 @@ func main() {
 
 	state.buildUI()
 
-	// Verifica FFmpeg all'avvio
-	// NOTA: SetOnShown rimosso perché non esiste in Fyne v2. 
-	// Il dialogo verrà mostrato automaticamente sopra la finestra quando questa appare.
-	ffmpegPath := findFFmpeg()
-	if ffmpegPath == "" {
-		dialog.ShowInformation(
-			"FFmpeg non trovato",
-			"FFmpeg non è stato trovato nel sistema.\n\n"+
-				"Per usare questa applicazione, devi:\n"+
-				"1. Scaricare ffmpeg.exe da ffmpeg.org\n"+
-				"2. Posizionarlo nella stessa cartella di questo programma\n"+
-				"   OPPURE aggiungerlo al PATH di sistema\n\n"+
-				"L'applicazione può essere usata una volta che FFmpeg è disponibile.",
-			w,
-		)
-	}
+go func() {
+    ffmpegPath := findFFmpeg()
+    if ffmpegPath == "" {
+        w.Canvas().Invoke(func() {
+            dialog.ShowInformation(
+                "FFmpeg non trovato",
+                "Scarica ffmpeg.exe e mettilo accanto al programma.",
+                w,
+            )
+        })
+    }
+}()
 
 	// Gestione Drag & Drop
 	w.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
