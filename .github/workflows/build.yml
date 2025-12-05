@@ -15,9 +15,8 @@ on:
         default: 'Manuale'
 
 jobs:
-
   build-windows:
-    name: Build for Windows
+    name: Build per Windows
     runs-on: windows-latest
     
     steps:
@@ -25,25 +24,123 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: '1.21'
 
+    - name: Verifica file icona
+      run: |
+        if (Test-Path "icon.ico") {
+          Write-Host "✓ File icon.ico trovato"
+          Get-Item "icon.ico" | Format-List
+        } else {
+          Write-Host "✗ ATTENZIONE: File icon.ico non trovato!"
+        }
+      shell: pwsh
+
     - name: Install Dependencies
       run: |
-        go mod init ffmpeg-gui-go
+        go mod init ffmpeg-gui-go 2>$null || echo "go.mod già esistente"
         go get fyne.io/fyne/v2
+        go get fyne.io/fyne/v2/app
+        go get fyne.io/fyne/v2/container
+        go get fyne.io/fyne/v2/dialog
+        go get fyne.io/fyne/v2/layout
+        go get fyne.io/fyne/v2/theme
+        go get fyne.io/fyne/v2/widget
         go mod tidy
 
-    - name: Build Optimized Executable
-      # -s: omette la tabella dei simboli
-      # -w: omette le informazioni di debug DWARF
-      # -H=windowsgui: nasconde la console dell'applicazione stessa (non apre cmd all'avvio)
-      run: go build -ldflags "-s -w -H=windowsgui" -o FFmpeg-GUI.exe .
+    - name: Install Fyne CLI
+      run: go install fyne.io/fyne/v2/cmd/fyne@latest
+
+    - name: Build con Fyne (include icona)
+      run: |
+        $env:PATH += ";$env:USERPROFILE\go\bin"
+        if (Test-Path "icon.ico") {
+          fyne package -os windows -icon icon.ico -name "FFmpeg-GUI" -release
+        } else {
+          Write-Host "Build senza icona (icon.ico non trovato)"
+          fyne package -os windows -name "FFmpeg-GUI" -release
+        }
+      shell: pwsh
+
+    - name: Verifica output
+      run: |
+        if (Test-Path "FFmpeg-GUI.exe") {
+          Write-Host "✓ Eseguibile creato con successo"
+          Get-Item "FFmpeg-GUI.exe" | Format-List
+        } else {
+          Write-Host "✗ ERRORE: Eseguibile non trovato!"
+          exit 1
+        }
+      shell: pwsh
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: FFmpeg-GUI-Windows
         path: FFmpeg-GUI.exe
+        if-no-files-found: error
+
+  build-windows-alternative:
+    name: Build Alternativo (senza Fyne CLI)
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+
+    - name: Install Dependencies
+      run: |
+        go mod init ffmpeg-gui-go 2>$null || echo "go.mod già esistente"
+        go get fyne.io/fyne/v2
+        go mod tidy
+
+    - name: Crea file risorsa Windows (rsrc)
+      run: |
+        # Installa rsrc per embed icona
+        go install github.com/akavel/rsrc@latest
+        
+        # Crea manifest
+        @"
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+          <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="FFmpegGUI" type="win32"/>
+          <dependency>
+            <dependentAssembly>
+              <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
+            </dependentAssembly>
+          </dependency>
+          <application xmlns="urn:schemas-microsoft-com:asm.v3">
+            <windowsSettings>
+              <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+            </windowsSettings>
+          </application>
+        </assembly>
+        "@ | Out-File -FilePath "app.manifest" -Encoding UTF8
+        
+        # Crea syso con icona
+        $env:PATH += ";$env:USERPROFILE\go\bin"
+        if (Test-Path "icon.ico") {
+          rsrc -manifest app.manifest -ico icon.ico -o rsrc.syso
+          Write-Host "✓ File rsrc.syso creato con icona"
+        } else {
+          rsrc -manifest app.manifest -o rsrc.syso
+          Write-Host "✓ File rsrc.syso creato senza icona"
+        }
+      shell: pwsh
+
+    - name: Build Optimized Executable
+      run: go build -ldflags "-s -w -H=windowsgui" -o FFmpeg-GUI-Alt.exe .
+
+    - name: Upload Alternative Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: FFmpeg-GUI-Windows-Alternative
+        path: FFmpeg-GUI-Alt.exe
         if-no-files-found: error
