@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"image/color"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,14 +12,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -51,7 +47,7 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 		return ColorFrameBg
 	case theme.ColorNamePrimary, theme.ColorNameFocus, theme.ColorNameSelection:
 		return ColorAccent
-	case theme.ColorNameForeground, theme.ColorNamePlaceholder:
+	case theme.ColorNameForeground:
 		return ColorText
 	case theme.ColorNameScrollBar:
 		return ColorAccent
@@ -124,23 +120,21 @@ func main() {
 	state.buildUI()
 	
 	// Gestione Drag & Drop
-	if drv, ok := w.Canvas().(desktop.Canvas); ok {
-		drv.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
-			var sb strings.Builder
-			sb.WriteString(state.fileList.Text)
-			for _, u := range uris {
-				path := u.Path()
-				if !strings.Contains(state.fileList.Text, path) {
-					if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
-						sb.WriteString("\n")
-					}
-					sb.WriteString(path + "\n")
+	w.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
+		var sb strings.Builder
+		sb.WriteString(state.fileList.Text)
+		for _, u := range uris {
+			path := u.Path()
+			if !strings.Contains(state.fileList.Text, path) {
+				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
+					sb.WriteString("\n")
 				}
+				sb.WriteString(path + "\n")
 			}
-			state.fileList.SetText(sb.String())
-			state.updatePreview()
-		})
-	}
+		}
+		state.fileList.SetText(sb.String())
+		state.updatePreview()
+	})
 
 	w.ShowAndRun()
 }
@@ -257,11 +251,6 @@ func (s *AppState) buildUI() {
 	s.btnStop = widget.NewButton("Ferma", s.stopCompression)
 	s.btnStop.Disable()
 	
-	// Coloriamo il bottone stop di rosso usando un container custom background se necessario, 
-	// ma per ora usiamo lo standard HighImportance che col tema custom è verde, 
-	// Fyne non supporta facilmente bottoni di colori diversi nello stesso tema senza oggetti custom.
-	// Nota: Il tema applica il verde a "Primary". 
-
 	actions := container.NewGridWithColumns(2, s.btnStart, s.btnStop)
 
 	// --- LAYOUT PRINCIPALE ---
