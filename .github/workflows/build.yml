@@ -55,6 +55,9 @@ jobs:
         go get fyne.io/fyne/v2/layout@latest
         go get fyne.io/fyne/v2/theme@latest
         go get fyne.io/fyne/v2/widget@latest
+
+        # Questo aggiornerà anche le dipendenze indirette necessarie.
+        go get -u fyne.io/fyne/v2
         
         # Crea go.sum
         go mod tidy
@@ -276,13 +279,3 @@ jobs:
     - name: Upload Simple Build
       uses: actions/upload-artifact@v4
       with:
-
-    - name: Upload go.sum Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: go-sum-file
-        path: go.sum
-        if-no-files-found: error
-        name: FFmpeg-GUI-Windows-Simple
-        path: FFmpeg-GUI-Simple.exe
-        if-no-files-found: error
