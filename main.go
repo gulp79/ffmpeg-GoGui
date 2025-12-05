@@ -124,22 +124,22 @@ func main() {
 
 	state.buildUI()
 
-	// Verifica FFmpeg dopo che la UI è pronta
-	w.SetOnShown(func() {
-		ffmpegPath := findFFmpeg()
-		if ffmpegPath == "" {
-			dialog.ShowInformation(
-				"FFmpeg non trovato",
-				"FFmpeg non è stato trovato nel sistema.\n\n"+
-					"Per usare questa applicazione, devi:\n"+
-					"1. Scaricare ffmpeg.exe da ffmpeg.org\n"+
-					"2. Posizionarlo nella stessa cartella di questo programma\n"+
-					"   OPPURE aggiungerlo al PATH di sistema\n\n"+
-					"L'applicazione può essere usata una volta che FFmpeg è disponibile.",
-				w,
-			)
-		}
-	})
+    // Verifica FFmpeg all'avvio
+	// Il controllo viene eseguito subito e il dialogo (se necessario) 
+	// verrà mostrato automaticamente sopra la finestra all'avvio.
+	ffmpegPath := findFFmpeg()
+	if ffmpegPath == "" {
+		dialog.ShowInformation(
+			"FFmpeg non trovato",
+			"FFmpeg non è stato trovato nel sistema.\n\n"+
+				"Per usare questa applicazione, devi:\n"+
+				"1. Scaricare ffmpeg.exe da ffmpeg.org\n"+
+				"2. Posizionarlo nella stessa cartella di questo programma\n"+
+				"   OPPURE aggiungerlo al PATH di sistema\n\n"+
+				"L'applicazione può essere usata una volta che FFmpeg è disponibile.",
+			w,
+		)
+	}
 
 	// Gestione Drag & Drop
 	w.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
