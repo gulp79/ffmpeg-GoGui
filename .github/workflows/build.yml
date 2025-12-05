@@ -26,8 +26,9 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.5'
-        cache: false  # Disabilitiamo cache finché non abbiamo go.sum
+        # Usa la versione di Go più recente specificata
+        go-version: '1.25.5' 
+        cache: false 
 
     - name: Verifica file icona
       run: |
@@ -41,41 +42,34 @@ jobs:
 
     - name: Initialize Go Module e Install Dependencies
       run: |
-        # Inizializza modulo se non esiste
+        # Inizializza modulo se non esiste (se il go.mod non è nel repo)
         if (-not (Test-Path "go.mod")) {
           go mod init github.com/gulp79/ffmpeg-gui-go
           Write-Host "✓ go.mod creato"
         }
         
-        # Installa dipendenze
-        go get fyne.io/fyne/v2@latest
-        go get fyne.io/fyne/v2/app@latest
-        go get fyne.io/fyne/v2/container@latest
-        go get fyne.io/fyne/v2/dialog@latest
-        go get fyne.io/fyne/v2/layout@latest
-        go get fyne.io/fyne/v2/theme@latest
-        go get fyne.io/fyne/v2/widget@latest
-
-        # Questo aggiornerà anche le dipendenze indirette necessarie.
+        # Aggiorna il modulo fyne/v2 alla versione più recente
         go get -u fyne.io/fyne/v2
         
-        # Crea go.sum
+        # Pulisce e genera go.sum con tutte le dipendenze aggiornate
         go mod tidy
         
-        Write-Host "✓ Dipendenze installate e go.sum generato"
+        Write-Host "✓ Dipendenze aggiornate e go.sum generato"
       shell: pwsh
 
-    - name: Install Fyne Tools (nuovo CLI)
+    - name: Install Fyne Tools (Official v2 CLI)
       run: |
+        # CORREZIONE CHIAVE: Usa il percorso corretto per la CLI Fyne v2
         go install fyne.io/fyne/v2/cmd/fyne@latest
-        Write-Host "✓ Fyne Tools installato"
+        Write-Host "✓ Fyne Tools v2 installato"
       shell: pwsh
 
     - name: Build con Fyne Package
       run: |
+        # Aggiungi go/bin al PATH per trovare il comando 'fyne' appena installato
         $env:PATH += ";$env:USERPROFILE\go\bin"
         
-        # Parametri corretti per il nuovo fyne tools
+        # Parametri corretti per fyne tools
         if (Test-Path "icon.ico") {
           Write-Host "Building con icona..."
           fyne package `
@@ -109,173 +103,16 @@ jobs:
         }
       shell: pwsh
 
-    - name: Upload Artifact
+    - name: Upload FFmpeg-GUI-Windows Artifact
       uses: actions/upload-artifact@v4
       with:
         name: FFmpeg-GUI-Windows
         path: FFmpeg-GUI.exe
         if-no-files-found: error
-
-  build-windows-manual:
-    name: Build Manuale con Embedding Icona
-    runs-on: windows-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23.5'
-        cache: false
-
-    - name: Initialize Go Module
-      run: |
-        if (-not (Test-Path "go.mod")) {
-          go mod init github.com/gulp79/ffmpeg-gui-go
-        }
         
-        go get fyne.io/fyne/v2@latest
-        go mod tidy
-        
-        Write-Host "✓ Modulo inizializzato"
-      shell: pwsh
-
-    - name: Install goversioninfo per embedding icona
-      run: |
-        go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
-        Write-Host "✓ goversioninfo installato"
-      shell: pwsh
-
-    - name: Crea file versioninfo.json
-      run: |
-        $versionInfo = @"
-        {
-          "FixedFileInfo": {
-            "FileVersion": {
-              "Major": 1,
-              "Minor": 0,
-              "Patch": 0,
-              "Build": 0
-            },
-            "ProductVersion": {
-              "Major": 1,
-              "Minor": 0,
-              "Patch": 0,
-              "Build": 0
-            },
-            "FileFlagsMask": "3f",
-            "FileFlags ": "00",
-            "FileOS": "040004",
-            "FileType": "01",
-            "FileSubType": "00"
-          },
-          "StringFileInfo": {
-            "Comments": "FFmpeg GUI con accelerazione CUDA",
-            "CompanyName": "gulp79",
-            "FileDescription": "FFmpeg GUI",
-            "FileVersion": "1.0.0.0",
-            "InternalName": "ffmpeg-gui",
-            "LegalCopyright": "© 2025",
-            "OriginalFilename": "FFmpeg-GUI.exe",
-            "ProductName": "FFmpeg GUI",
-            "ProductVersion": "1.0.0.0"
-          },
-          "VarFileInfo": {
-            "Translation": {
-              "LangID": "0409",
-              "CharsetID": "04B0"
-            }
-          },
-          "IconPath": "icon.ico",
-          "ManifestPath": ""
-        }
-        "@
-        
-        $versionInfo | Out-File -FilePath "versioninfo.json" -Encoding UTF8
-        Write-Host "✓ versioninfo.json creato"
-      shell: pwsh
-
-    - name: Generate resource.syso
-      run: |
-        $env:PATH += ";$env:USERPROFILE\go\bin"
-        
-        if (Test-Path "icon.ico") {
-          goversioninfo -icon=icon.ico
-          Write-Host "✓ resource.syso generato con icona"
-        } else {
-          goversioninfo
-          Write-Host "✓ resource.syso generato senza icona"
-        }
-        
-        if (Test-Path "resource.syso") {
-          Get-Item "resource.syso" | Format-List
-        }
-      shell: pwsh
-
-    - name: Build Executable
-      run: |
-        go build -v -ldflags "-s -w -H=windowsgui" -o FFmpeg-GUI.exe .
-        
-        if (Test-Path "FFmpeg-GUI.exe") {
-          Write-Host "✓ Build completata"
-          Get-Item "FFmpeg-GUI.exe" | Format-List Name, Length, LastWriteTime
-        } else {
-          throw "Build fallita!"
-        }
-      shell: pwsh
-
-    - name: Test eseguibile (verifica che sia valido)
-      run: |
-        # Verifica che sia un PE valido
-        $bytes = [System.IO.File]::ReadAllBytes("FFmpeg-GUI.exe")
-        if ($bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A) {
-          Write-Host "✓ File PE valido (MZ header presente)"
-        } else {
-          throw "File non è un eseguibile valido!"
-        }
-      shell: pwsh
-
-    - name: Upload Artifact Manual Build
+    - name: Upload go.sum Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: FFmpeg-GUI-Windows-Manual
-        path: FFmpeg-GUI.exe
+        name: go-sum-file
+        path: go.sum
         if-no-files-found: error
-
-  build-windows-simple:
-    name: Build Semplice (Fallback)
-    runs-on: windows-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23.5'
-        cache: false
-
-    - name: Initialize Module e Build
-      run: |
-        if (-not (Test-Path "go.mod")) {
-          go mod init github.com/gulp79/ffmpeg-gui-go
-        }
-        
-        go get fyne.io/fyne/v2@latest
-        go mod tidy
-        
-        # Build diretto senza embedding icona
-        go build -v -ldflags "-s -w -H=windowsgui" -o FFmpeg-GUI-Simple.exe .
-        
-        if (Test-Path "FFmpeg-GUI-Simple.exe") {
-          Write-Host "✓ Build semplice completata"
-          Get-Item "FFmpeg-GUI-Simple.exe" | Format-List
-        }
-      shell: pwsh
-
-    - name: Upload Simple Build
-      uses: actions/upload-artifact@v4
-      with:
